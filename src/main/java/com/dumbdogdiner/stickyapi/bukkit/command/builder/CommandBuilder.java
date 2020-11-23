@@ -66,10 +66,12 @@ public class CommandBuilder {
         public ExitCode apply(CommandSender sender, Arguments args, TreeMap<String, String> vars);
     }
 
+    @FunctionalInterface
     public interface TabExecutor {
         public java.util.List<String> apply(CommandSender sender, String commandLabel, Arguments args);
     }
 
+    @FunctionalInterface
     public interface ErrorHandler {
         public void apply(ExitCode exitCode, CommandSender sender, Arguments args, TreeMap<String, String> vars);
     }
@@ -141,7 +143,7 @@ public class CommandBuilder {
     /**
      * If this command should play a sound upon exiting
      * 
-     * @param playSound
+     * @param playSound if sound should be enabled
      * @return {@link CommandBuilder}
      */
     public CommandBuilder playSound(@NotNull Boolean playSound) {
@@ -187,9 +189,7 @@ public class CommandBuilder {
      * @return {@link CommandBuilder}
      */
     public CommandBuilder alias(@NotNull String... alias) {
-        for (var a : alias) {
-            this.aliases.add(a);
-        }
+        this.aliases.addAll(Arrays.asList(alias));
         return this;
     }
 
@@ -200,7 +200,7 @@ public class CommandBuilder {
      * @return {@link CommandBuilder}
      */
     public CommandBuilder aliases(@NotNull List<String> aliases) {
-        this.aliases = aliases;
+        this.aliases.addAll(aliases);
         return this;
     }
 
@@ -210,9 +210,9 @@ public class CommandBuilder {
      * @param builder the sub command
      * @return {@link CommandBuilder}
      */
-    public CommandBuilder subCommand(CommandBuilder builder) {
+    public CommandBuilder subCommand(SubComandBuilder builder) {
         builder.synchronous = this.synchronous;
-        builder.subCommand = true;
+        //builder.subCommand = true;
         this.subCommands.put(builder.name, builder);
         return this;
     }
@@ -273,15 +273,14 @@ public class CommandBuilder {
 
             // We can't modify List, so we need to make a clone of it, because java is
             // special.
-            ArrayList<String> argsClone = new ArrayList<String>(args);
-            argsClone.remove(0);
+            List<String> subArgs = args.subList(1, args.size());
 
             // spawn async command from sync
             if (synchronous && !subCommand.synchronous) {
-                subCommand.performAsynchronousExecution(sender, command, label, argsClone);
+                subCommand.performAsynchronousExecution(sender, command, label, subArgs);
             }
 
-            subCommand.performExecution(sender, command, label, argsClone);
+            subCommand.performExecution(sender, command, label, subArgs);
             return;
         }
 
@@ -341,11 +340,26 @@ public class CommandBuilder {
      * @return {@link org.bukkit.command.Command}
      */
     public org.bukkit.command.Command build(@NotNull Plugin plugin) {
-        PluginCommand command = new PluginCommand(this.name, plugin);
-
         if (this.synchronous == null) {
             this.synchronous = false;
         }
+
+        PluginCommand command = new PluginCommand(this.name, aliases,  plugin){
+            {
+                playSounds = playSound;
+            }
+            @Override
+            public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args) {
+                return null;
+            }
+
+            @Override
+            public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException, CommandException {
+                return null;
+            }
+        };
+
+
 
         // Execute the command by creating a new CommandExecutor and passing the
         // arguments to our executor
@@ -397,20 +411,5 @@ public class CommandBuilder {
         return command;
     }
 
-    /**
-     * Register the command with a {@link org.bukkit.plugin.Plugin}
-     * 
-     * @param plugin to register with
-     */
-    public void register(@NotNull Plugin plugin) {
-        Command command = this.build(plugin);
-        CommandMap cmap = ReflectionUtil.getProtectedValue(plugin.getServer(), "commandMap");
-        cmap.register(plugin.getName(), command);
-    }
 
-    private void _playSound(CommandSender sender, NotificationType type) {
-        if (!this.playSound)
-            return;
-        SoundUtil.send(sender, type);
-    }
 }

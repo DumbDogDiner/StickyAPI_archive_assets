@@ -4,5 +4,10 @@
  */
 package com.dumbdogdiner.stickyapi.common.util.commonmarkextensions;
 
+import com.dumbdogdiner.stickyapi.annotation.Untested;
+import com.dumbdogdiner.stickyapi.annotation.Unwritten;
+
+@Untested
+@Unwritten
 public class MarkdownJsonRenderer {
 }

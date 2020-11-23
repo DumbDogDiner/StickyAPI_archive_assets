@@ -19,19 +19,22 @@ public class ClickableSlot {
     private ItemStack item;
 
     @Getter
-    private int slot;
+    private final int slot;
 
-    @Getter
-    private ItemMeta meta = item.getItemMeta();
+    public ClickableSlot(ItemStack item, int slot){
+        this.item = item;
+        this.slot = slot;
+    }
 
-    public ClickableSlot(Material pMaterial, String pName, int pAmount, int pSlot) {
-        this.item = new ItemStack(pMaterial, pAmount);
+    public ClickableSlot(Material material, String name, int amount, int slot) {
+        item = new ItemStack(material, amount);
 
-        ItemMeta isM = item.getItemMeta();
-        isM.setDisplayName(pName);
-        item.setItemMeta(isM);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(name);
+        //FIXME Do we actually need to re-set it tho? Didnt we get by ref??
+        item.setItemMeta(meta);
 
-        this.slot = pSlot;
+        this.slot = slot;
     }
 
     public void execute(Runnable r) {
@@ -41,6 +44,7 @@ public class ClickableSlot {
     public void setName(String s) {
         ItemMeta isM = this.item.getItemMeta();
         isM.setDisplayName(s);
+        //FIXME Do we actually need to re-set it tho?
         item.setItemMeta(isM);
     }
 

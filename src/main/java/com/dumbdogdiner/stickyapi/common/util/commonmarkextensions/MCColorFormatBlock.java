@@ -4,10 +4,12 @@
  */
 package com.dumbdogdiner.stickyapi.common.util.commonmarkextensions;
 
+import com.dumbdogdiner.stickyapi.annotation.Untested;
 import lombok.Getter;
 import org.bukkit.ChatColor;
 import org.commonmark.node.CustomBlock;
 
+@Untested
 public class MCColorFormatBlock extends CustomBlock {
     @Getter
     private ChatColor type;

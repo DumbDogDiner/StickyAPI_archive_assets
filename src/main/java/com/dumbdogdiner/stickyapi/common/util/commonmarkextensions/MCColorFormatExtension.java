@@ -4,9 +4,10 @@
  */
 package com.dumbdogdiner.stickyapi.common.util.commonmarkextensions;
 
+import com.dumbdogdiner.stickyapi.annotation.Untested;
 import org.commonmark.Extension;
 import org.commonmark.parser.Parser;
-
+@Untested
 public class MCColorFormatExtension implements Parser.ParserExtension {
     private MCColorFormatExtension(){}
 

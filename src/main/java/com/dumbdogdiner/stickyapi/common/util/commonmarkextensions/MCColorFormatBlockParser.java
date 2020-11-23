@@ -4,6 +4,7 @@
  */
 package com.dumbdogdiner.stickyapi.common.util.commonmarkextensions;
 
+import com.dumbdogdiner.stickyapi.annotation.Untested;
 import lombok.Getter;
 import org.bukkit.ChatColor;
 import org.commonmark.node.Block;
@@ -12,6 +13,7 @@ import org.commonmark.parser.block.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Untested
 public class MCColorFormatBlockParser extends AbstractBlockParser {
     private ChatColor color;
 
