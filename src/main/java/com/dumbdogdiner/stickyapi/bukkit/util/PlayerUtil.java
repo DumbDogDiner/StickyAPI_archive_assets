@@ -33,12 +33,13 @@ public class PlayerUtil {
             ArrayList<String> playerNames = new ArrayList<>();
 
             List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
-            players.sort(new OfflinePlayerSeenComparator());
+            //players.sort(new OfflinePlayerSeenComparator());
             players.forEach(player -> {
                 playerNames.remove(player.getName());
             });
 
             allPlayerNames.removeAll(playerNames);
+            playerNames.sort(String.CASE_INSENSITIVE_ORDER);
             return playerNames;
         }
 

@@ -10,6 +10,7 @@ import com.dumbdogdiner.stickyapi.bukkit.command.PluginCommand;
 import com.dumbdogdiner.stickyapi.bukkit.util.NotificationType;
 import com.dumbdogdiner.stickyapi.bukkit.util.SoundUtil;
 import com.dumbdogdiner.stickyapi.common.arguments.Arguments;
+import com.dumbdogdiner.stickyapi.common.translation.LocaleProvider;
 import com.dumbdogdiner.stickyapi.common.util.ReflectionUtil;
 import com.dumbdogdiner.stickyapi.common.util.StringUtil;
 import com.google.common.collect.ImmutableList;
@@ -51,7 +52,31 @@ public class CommandBuilder {
     Long cooldown = 0L;
 
     Executor executor;
-    TabExecutor tabExecutor;
+    TabExecutor tabExecutor = new TabExecutor() {
+        @Override
+        public List<String> apply(CommandSender sender, String commandLabel, Arguments arguments) {
+            String [] args = (String[]) arguments.getRawArgs().toArray();
+            if (args.length == 0) {
+                return ImmutableList.of();
+            }
+
+            String lastWord = args[args.length - 1];
+
+            Player senderPlayer = sender instanceof Player ? (Player) sender : null;
+
+            ArrayList<String> matchedPlayers = new ArrayList<String>();
+            for (Player player : sender.getServer().getOnlinePlayers()) {
+                String name = player.getName();
+                if ((senderPlayer == null || senderPlayer.canSee(player))
+                        && StringUtil.startsWithIgnoreCase(name, lastWord)) {
+                    matchedPlayers.add(name);
+                }
+            }
+
+            matchedPlayers.sort(String.CASE_INSENSITIVE_ORDER);
+            return matchedPlayers;
+        }
+    };
 
     ErrorHandler errorHandler;
 
@@ -353,12 +378,12 @@ public class CommandBuilder {
      * @param plugin to build it for
      * @return {@link org.bukkit.command.Command}
      */
-    public org.bukkit.command.Command build(@NotNull Plugin plugin) {
+    public org.bukkit.command.Command build(@NotNull Plugin plugin, LocaleProvider locale) {
         if (this.synchronous == null) {
             this.synchronous = false;
         }
 
-        PluginCommand command = new PluginCommand(this.name, aliases,  plugin){
+        PluginCommand command = new PluginCommand(this.name, aliases,  plugin, locale){
             {
                 playSounds = playSound;
             }
@@ -369,7 +394,7 @@ public class CommandBuilder {
 
             @Override
             public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException, CommandException {
-                return null;
+                return tabExecutor.apply(sender, alias, new Arguments(Arrays.asList(args)));
             }
         };
 
@@ -386,34 +411,7 @@ public class CommandBuilder {
             }
         });
 
-        command.setTabCompleter(new TabCompleter() {
-            @Override
-            public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-                if (tabExecutor == null) {
-                    if (args.length == 0) {
-                        return ImmutableList.of();
-                    }
 
-                    String lastWord = args[args.length - 1];
-
-                    Player senderPlayer = sender instanceof Player ? (Player) sender : null;
-
-                    ArrayList<String> matchedPlayers = new ArrayList<String>();
-                    for (Player player : sender.getServer().getOnlinePlayers()) {
-                        String name = player.getName();
-                        if ((senderPlayer == null || senderPlayer.canSee(player))
-                                && StringUtil.startsWithIgnoreCase(name, lastWord)) {
-                            matchedPlayers.add(name);
-                        }
-                    }
-
-                    Collections.sort(matchedPlayers, String.CASE_INSENSITIVE_ORDER);
-                    return matchedPlayers;
-                } else {
-                    return tabExecutor.apply(sender, alias, new Arguments(Arrays.asList(args)));
-                }
-            }
-        });
 
         command.setDescription(this.description);
 

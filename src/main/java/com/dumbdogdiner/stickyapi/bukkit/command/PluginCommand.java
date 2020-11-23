@@ -34,12 +34,13 @@ import static com.dumbdogdiner.stickyapi.bukkit.command.ExitCode.EXIT_COOLDOWN;
 public abstract class PluginCommand extends org.bukkit.command.Command implements PluginIdentifiableCommand {
     private final Plugin owningPlugin;
     private TabCompleter completer;
-    protected List<Permission> commandPermissions;
+    @Getter
+    protected List<Permission> commandPermissions = new ArrayList<>();
     protected boolean playSounds = false;
     protected Map<CommandSender, Long> cooldownSenders = new HashMap<>();
     protected static long COOLDOWN_TIME = 0L;
-    //fixme point to the internal messages yml plz;
-    private LocaleProvider rootLocaleProvider = new LocaleProvider(null);
+    @Getter
+    private LocaleProvider locale;
     @Setter
     @Getter
     CommandBuilder.ErrorHandler errorHandler;
@@ -65,16 +66,16 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
             vars.put("plugin", owningPlugin.getName());
             switch(exitCode){
                 case EXIT_PERMISSION_DENIED:
-                    sender.sendMessage(rootLocaleProvider.translate("no-permission", vars));
+                    sender.sendMessage(locale.translate("no-permission", vars));
                     break;
                 case EXIT_MUST_BE_PLAYER:
-                    sender.sendMessage(rootLocaleProvider.translate("must-be-player", vars));
+                    sender.sendMessage(locale.translate("must-be-player", vars));
                     break;
                 case EXIT_COOLDOWN:
                     // could be wrong i guess?? fixme
                     float timeToWait = Math.max(0f,cooldownSenders.getOrDefault(sender, (long) Bukkit.getWorlds().get(1).getFullTime()) - Bukkit.getWorlds().get(1).getFullTime() / 20.0f);
                     vars.put("cooldown", String.format("%.1f", timeToWait));
-                    sender.sendMessage(rootLocaleProvider.translate("cooldown", vars));
+                    sender.sendMessage(locale.translate("cooldown", vars));
             }
 
         }
@@ -89,12 +90,12 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
         }
     }
 
-    public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull Plugin owner) {
+    public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull Plugin owner, @NotNull LocaleProvider locale) {
         super(name);
         if(aliases != null)
             setAliases(aliases);
         this.owningPlugin = owner;
-
+        this.locale = locale;
     }
 
     abstract public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args);
@@ -143,6 +144,8 @@ ExitCode code;
                     + owningPlugin.getDescription().getFullName(), ex);
         }
     }
+
+    protected abstract void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code);
 
     private boolean checkCooldown(CommandSender sender) {
         if(!cooldownSenders.containsKey(sender)){
