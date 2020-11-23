@@ -15,6 +15,7 @@ import com.dumbdogdiner.stickyapi.common.util.StringUtil;
 import com.google.common.collect.ImmutableList;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
+import org.bukkit.permissions.Permission;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 
@@ -43,7 +44,7 @@ public class CommandBuilder {
     protected Boolean synchronous = false;
     protected Boolean requiresPlayer = false;
     protected String name;
-    String permission;
+    Permission permission;
     String description;
     Boolean playSound = false;
     List<String> aliases = new ArrayList<>();
@@ -58,6 +59,8 @@ public class CommandBuilder {
 
     HashMap<String, CommandBuilder> subCommands = new HashMap<>();
 
+
+    //Fixme should have a scheduled task thing that adds uuids or senders to a list, and removes them after a time ellapses.
     // Hmm...
     HashMap<CommandSender, Long> cooldownSenders = new HashMap<>();
 
@@ -167,6 +170,17 @@ public class CommandBuilder {
      * @return {@link CommandBuilder}
      */
     public CommandBuilder permission(@NotNull String permission) {
+        this.permission = new Permission(permission);
+        return this;
+    }
+
+    /**
+     * Set the permission of the command
+     *
+     * @param permission to set
+     * @return {@link CommandBuilder}
+     */
+    public CommandBuilder permission(@NotNull Permission permission) {
         this.permission = permission;
         return this;
     }

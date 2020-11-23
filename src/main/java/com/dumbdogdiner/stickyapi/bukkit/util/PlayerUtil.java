@@ -2,25 +2,43 @@
  * Copyright (c) 2020 DumbDogDiner <a href="dumbdogdiner.com">&lt;dumbdogdiner.com&gt;</a>. All rights reserved.
  * Licensed under the MIT license, see LICENSE for more information...
  */
-package com.dumbdogdiner.stickyapi.bukkit.player;
+package com.dumbdogdiner.stickyapi.bukkit.util;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 
 import java.util.*;
 
 import static com.dumbdogdiner.stickyapi.common.util.NumberUtil.intHelper;
 
+
+//FIXME we need to have a login logout listener, and tbh this should be done by a DB, and this class should act as a basic db interface or similar. Probably need a combined waterfall-bukkit plugin for this, or maybe just waterfall. I honestly do not know.
 @SuppressWarnings("unused")
-public class PlayerUtils {
+public class PlayerUtil {
     public static class Names {
+        static List<String> allPlayerNames;
+        static {
+            allPlayerNames = new ArrayList<>();
+            OfflinePlayer [] offlinePlayers = Bukkit.getServer().getOfflinePlayers();
+            Arrays.sort(offlinePlayers, new OfflinePlayerSeenComparator());
+
+            for (OfflinePlayer player : offlinePlayers) {
+                allPlayerNames.add(player.getName());
+            }
+
+            allPlayerNames.addAll(0, getOnlinePlayers());
+        }
         public static List<String> getOnlinePlayers() {
             ArrayList<String> playerNames = new ArrayList<>();
 
-            Bukkit.getOnlinePlayers().forEach(player -> {
+            List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+            players.sort(new OfflinePlayerSeenComparator());
+            players.forEach(player -> {
                 playerNames.remove(player.getName());
             });
 
+            allPlayerNames.removeAll(playerNames);
             return playerNames;
         }
 
@@ -34,13 +52,7 @@ public class PlayerUtils {
         }
 
         public static List<String> getAllPlayers() {
-            ArrayList<String> allPlayerNames = new ArrayList<>();
-            OfflinePlayer [] offlinePlayers = Bukkit.getServer().getOfflinePlayers();
-            Arrays.sort(offlinePlayers, new OfflinePlayerSeenComparator());
-
-            for (OfflinePlayer player : offlinePlayers) {
-                allPlayerNames.add(player.getName());
-            }
+            getOnlinePlayers();
             return allPlayerNames;
         }
     }

@@ -4,19 +4,25 @@
  */
 package com.dumbdogdiner.stickyapi.bukkit.command;
 
+import com.dumbdogdiner.stickyapi.bukkit.command.builder.CommandBuilder;
 import com.dumbdogdiner.stickyapi.bukkit.util.NotificationType;
 import com.dumbdogdiner.stickyapi.bukkit.util.SoundUtil;
 import com.dumbdogdiner.stickyapi.common.arguments.Arguments;
+import com.dumbdogdiner.stickyapi.common.translation.LocaleProvider;
 import com.dumbdogdiner.stickyapi.common.util.ReflectionUtil;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang.Validate;
+import org.bukkit.Bukkit;
 import org.bukkit.command.*;
 import org.bukkit.permissions.Permission;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
+
+import static com.dumbdogdiner.stickyapi.bukkit.command.ExitCode.EXIT_COOLDOWN;
 
 /**
  * Represents a {@link org.bukkit.command.Command} belonging to a plugin
@@ -30,6 +36,58 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
     private TabCompleter completer;
     protected List<Permission> commandPermissions;
     protected boolean playSounds = false;
+    protected Map<CommandSender, Long> cooldownSenders = new HashMap<>();
+    protected static long COOLDOWN_TIME = 0L;
+    //fixme point to the internal messages yml plz;
+    private LocaleProvider rootLocaleProvider = new LocaleProvider(null);
+    @Setter
+    @Getter
+    CommandBuilder.ErrorHandler errorHandler;
+
+
+    public class StatusInfo {
+        @Getter
+        private final TreeMap<String, String> variables;
+        @Getter
+        private final ExitCode exitCode;
+
+        public StatusInfo(TreeMap<String, String> variables, ExitCode exitCode) {
+            this.variables = variables;
+            variables.put("plugin", owningPlugin.getName());
+            this.exitCode = exitCode;
+        }
+    }
+
+    public class SilentErrorHandler implements CommandBuilder.ErrorHandler{
+
+        @Override
+        public void apply(ExitCode exitCode, CommandSender sender, Arguments args, TreeMap<String, String> vars) {
+            vars.put("plugin", owningPlugin.getName());
+            switch(exitCode){
+                case EXIT_PERMISSION_DENIED:
+                    sender.sendMessage(rootLocaleProvider.translate("no-permission", vars));
+                    break;
+                case EXIT_MUST_BE_PLAYER:
+                    sender.sendMessage(rootLocaleProvider.translate("must-be-player", vars));
+                    break;
+                case EXIT_COOLDOWN:
+                    // could be wrong i guess?? fixme
+                    float timeToWait = Math.max(0f,cooldownSenders.getOrDefault(sender, (long) Bukkit.getWorlds().get(1).getFullTime()) - Bukkit.getWorlds().get(1).getFullTime() / 20.0f);
+                    vars.put("cooldown", String.format("%.1f", timeToWait));
+                    sender.sendMessage(rootLocaleProvider.translate("cooldown", vars));
+            }
+
+        }
+    }
+
+    public class NoisyErrorHandler extends SilentErrorHandler implements CommandBuilder.ErrorHandler{
+
+        @Override
+        public void apply(ExitCode exitCode, CommandSender sender, Arguments args, TreeMap<String, String> vars) {
+            super.apply(exitCode, sender, args, vars);
+            playSound(sender, exitCode.getType());
+        }
+    }
 
     public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull Plugin owner) {
         super(name);
@@ -58,12 +116,16 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
                     + owningPlugin.getDescription().getFullName() + " - plugin is disabled.");
         }
         Arguments arguments = new Arguments(Arrays.asList(args));
-
-
+ExitCode code;
         try {
-            switch(execute(sender, commandLabel, arguments)){
+            code = checkCooldown(sender) ? EXIT_COOLDOWN : execute(sender,commandLabel,arguments);
+            switch(code){
                 case EXIT_ERROR_SILENT:
                 case EXIT_SUCCESS:
+                    playSound(sender, NotificationType.SUCCESS);
+                    return true;
+                case EXIT_INFO:
+                    playSound(sender, NotificationType.INFO);
                     return true;
                 case EXIT_INVALID_SYNTAX:
                     if (usageMessage.length() > 0) {
@@ -72,12 +134,25 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
                         }
                     }
                 default:
+                    playSound(sender, NotificationType.ERROR);
+                    onError(sender, commandLabel, arguments, code);
                     return false;
             }
         } catch (Throwable ex) {
             throw new CommandException("Unhandled exception executing command '" + commandLabel + "' in plugin "
                     + owningPlugin.getDescription().getFullName(), ex);
         }
+    }
+
+    private boolean checkCooldown(CommandSender sender) {
+        if(!cooldownSenders.containsKey(sender)){
+            Bukkit.getScheduler().runTaskLaterAsynchronously(owningPlugin, () -> {
+               cooldownSenders.remove(sender);
+            }, COOLDOWN_TIME);
+            cooldownSenders.put(sender, Bukkit.getCurrentTick() + COOLDOWN_TIME);
+            return false;
+        }
+        return true;
     }
 
 
