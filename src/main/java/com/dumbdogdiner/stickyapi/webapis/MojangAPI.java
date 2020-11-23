@@ -54,6 +54,8 @@ public class MojangAPI {
     }
 
     public static APIStatus getMojangAPIStatus(){
+        URL url = new URL(MOJANG_STATUS_BASE_URL);
+        
         return APIStatus.RED;
     }
 
