@@ -4,17 +4,11 @@
  */
 package com.dumbdogdiner.stickyapi.bukkit.command.builder;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.TreeMap;
-import java.util.concurrent.FutureTask;
 
 import com.dumbdogdiner.stickyapi.StickyAPI;
 import com.dumbdogdiner.stickyapi.bukkit.command.ExitCode;
 import com.dumbdogdiner.stickyapi.bukkit.command.PluginCommand;
+import com.dumbdogdiner.stickyapi.bukkit.plugin.StickyPlugin;
 import com.dumbdogdiner.stickyapi.bukkit.util.NotificationType;
 import com.dumbdogdiner.stickyapi.bukkit.util.SoundUtil;
 import com.dumbdogdiner.stickyapi.common.ServerVersion;
@@ -22,15 +16,15 @@ import com.dumbdogdiner.stickyapi.common.arguments.Arguments;
 import com.dumbdogdiner.stickyapi.common.util.ReflectionUtil;
 import com.dumbdogdiner.stickyapi.common.util.StringUtil;
 import com.google.common.collect.ImmutableList;
-
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandMap;
-import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
+import org.bukkit.Bukkit;
+import org.bukkit.command.*;
 import org.bukkit.entity.Player;
+import org.bukkit.permissions.Permission;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.*;
+import java.util.concurrent.FutureTask;
 
 /**
  * CommandBuilder for avoiding bukkit's terrible command API and making creating
@@ -42,7 +36,7 @@ public class CommandBuilder {
     Boolean synchronous = false;
     Boolean requiresPlayer = false;
     String name;
-    String permission;
+    Permission permission;
     String description;
     Boolean playSound = false;
     List<String> aliases = new ArrayList<>();
@@ -53,24 +47,25 @@ public class CommandBuilder {
 
     ErrorHandler errorHandler;
 
-    Command bukkitCommand;
+    PluginCommand bukkitCommand;
 
     HashMap<String, CommandBuilder> subCommands = new HashMap<>();
 
-    // Hmm...
-    HashMap<CommandSender, Long> cooldownSenders = new HashMap<>();
+
 
     @FunctionalInterface
     public interface Executor {
-        public ExitCode apply(CommandSender sender, Arguments args, TreeMap<String, String> vars);
+        public ExitCode execute(CommandSender sender, Arguments args, TreeMap<String, String> vars);
     }
 
+    @FunctionalInterface
     public interface TabExecutor {
-        public java.util.List<String> apply(CommandSender sender, String commandLabel, Arguments args);
+        public java.util.List<String> tabComplete(CommandSender sender, String commandLabel, Arguments args);
     }
 
+    @FunctionalInterface
     public interface ErrorHandler {
-        public void apply(ExitCode exitCode, CommandSender sender, Arguments args, TreeMap<String, String> vars);
+        public void onComplete(ExitCode exitCode, CommandSender sender, Arguments args, TreeMap<String, String> vars);
     }
 
     /**
@@ -164,6 +159,17 @@ public class CommandBuilder {
      * @return {@link CommandBuilder}
      */
     public CommandBuilder permission(@NotNull String permission) {
+        this.permission = new Permission(permission);
+        return this;
+    }
+
+    /**
+     * Set the permission of the command
+     *
+     * @param permission to set
+     * @return {@link CommandBuilder}
+     */
+    public CommandBuilder permission(@NotNull Permission permission) {
         this.permission = permission;
         return this;
     }
@@ -186,9 +192,7 @@ public class CommandBuilder {
      * @return {@link CommandBuilder}
      */
     public CommandBuilder alias(@NotNull String... alias) {
-        for (var a : alias) {
-            this.aliases.add(a);
-        }
+        this.aliases.addAll(Arrays.asList(alias));
         return this;
     }
 
@@ -257,79 +261,59 @@ public class CommandBuilder {
     }
 
     /**
+     *
+     * @param sender the commandsender
+     * @param command the bukkit command
+     * @param args the args provided to the main command
+     * @return if a subcommand was found and executed
+     */
+    private boolean executeSubCommandIfExists(CommandSender sender, PluginIdentifiableCommand command, List<String> args){
+        if (args.size() > 0 && subCommands.containsKey(args.get(0))) {
+            CommandBuilder subCommand = subCommands.get(args.get(0));
+            String subLabel = args.get(0);
+            List<String> subArgs = args.subList(1, args.size());
+            if(synchronous != subCommand.synchronous){
+                if(subCommand.synchronous){
+                    subCommand.performAsynchronousExecution(sender, command, subLabel, subArgs);
+                } else {
+                    Bukkit.getScheduler().scheduleSyncDelayedTask(command.getPlugin(), new Runnable() {
+                        @Override
+                        public void run() {
+                            subCommand.performExecution(sender, command, subLabel, args);
+                        }
+                    }, 1L);
+                }
+            }
+        }
+    }
+
+    /**
      * Execute this command. Checks for existing sub-commands, and runs the error
      * handler if anything goes wrong.
      */
-    private void performExecution(CommandSender sender, org.bukkit.command.Command command, String label,
+    private void performExecution(CommandSender sender, PluginIdentifiableCommand command, String label,
             List<String> args) {
+        if(executeSubCommandIfExists(sender, command, label, args))
         // look for subcommands
         if (args.size() > 0 && subCommands.containsKey(args.get(0))) {
-            CommandBuilder subCommand = subCommands.get(args.get(0));
-            if (!synchronous && subCommand.synchronous) {
-                throw new RuntimeException("Attempted to asynchronously execute a synchronous sub-command!");
-            }
 
-            // We can't modify List, so we need to make a clone of it, because java is
-            // special.
-            ArrayList<String> argsClone = new ArrayList<String>(args);
-            argsClone.remove(0);
+
+
+
+            List <String> subArgs = args.subList(1, args.size());
+
+
 
             // spawn async command from sync
             if (synchronous && !subCommand.synchronous) {
-                subCommand.performAsynchronousExecution(sender, command, label, argsClone);
+
             }
 
             subCommand.performExecution(sender, command, label, argsClone);
             return;
         }
 
-        ExitCode exitCode;
-        Arguments a = new Arguments(args);
-        var variables = new TreeMap<String, String>();
-        variables.put("command", command.getName());
-        variables.put("sender", sender.getName());
-        variables.put("player", sender.getName());
-        variables.put("uuid", (sender instanceof Player) ? ((Player) sender).getUniqueId().toString() : "");
-        variables.put("cooldown", cooldown.toString());
-        variables.put("cooldown_remaining",
-                cooldownSenders.containsKey(sender)
-                        ? String.valueOf(cooldown - (System.currentTimeMillis() - cooldownSenders.get(sender)))
-                        : "0");
-        try {
-            if (cooldownSenders.containsKey(sender)
-                    && ((System.currentTimeMillis() - cooldownSenders.get(sender)) < cooldown)) {
-                exitCode = ExitCode.EXIT_COOLDOWN;
-            } else {
 
-                // Add our sender and their command execution time to our hashmap of coolness
-                cooldownSenders.put(sender, System.currentTimeMillis());
-
-                // If the user does not have permission to execute the sub command, don't let
-                // them execute and return permission denied
-                if (this.permission != null && !sender.hasPermission(this.permission)) {
-                    exitCode = ExitCode.EXIT_PERMISSION_DENIED;
-                } else if (this.requiresPlayer && !(sender instanceof Player)) {
-                    exitCode = ExitCode.EXIT_MUST_BE_PLAYER;
-                } else {
-                    exitCode = executor.apply(sender, a, variables);
-                }
-            }
-        } catch (Exception e) {
-            exitCode = ExitCode.EXIT_ERROR;
-            e.printStackTrace();
-        }
-
-        // run the error handler - something made a fucky wucky uwu
-        if (exitCode != ExitCode.EXIT_SUCCESS) {
-            if (exitCode == ExitCode.EXIT_INFO) {
-                _playSound(sender, NotificationType.INFO);
-                return;
-            }
-            errorHandler.apply(exitCode, sender, a, variables);
-            _playSound(sender, NotificationType.ERROR);
-        } else {
-            _playSound(sender, NotificationType.SUCCESS);
-        }
     }
 
     /**
@@ -338,8 +322,19 @@ public class CommandBuilder {
      * @param plugin to build it for
      * @return {@link org.bukkit.command.Command}
      */
-    public org.bukkit.command.Command build(@NotNull Plugin plugin) {
-        PluginCommand command = new PluginCommand(this.name, plugin);
+    public org.bukkit.command.Command build(@NotNull StickyPlugin plugin) {
+
+        PluginCommand command = new PluginCommand(name, aliases, plugin) {
+            @Override
+            public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args, @NotNull Map<String, String> variables) {
+                return null;
+            }
+
+            @Override
+            public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException, CommandException {
+                return null;
+            }
+        };
 
         if (this.synchronous == null) {
             this.synchronous = false;
@@ -380,7 +375,7 @@ public class CommandBuilder {
                     Collections.sort(matchedPlayers, String.CASE_INSENSITIVE_ORDER);
                     return matchedPlayers;
                 } else {
-                    return tabExecutor.apply(sender, alias, new Arguments(Arrays.asList(args)));
+                    return tabExecutor.tabComplete(sender, alias, new Arguments(Arrays.asList(args)));
                 }
             }
         });

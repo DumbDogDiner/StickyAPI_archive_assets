@@ -4,6 +4,9 @@
  */
 package com.dumbdogdiner.stickyapi.common.util;
 
+import org.jetbrains.annotations.NotNull;
+
+import javax.annotation.Nullable;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
@@ -12,10 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-import javax.annotation.Nullable;
-
-import org.jetbrains.annotations.NotNull;
-
 /**
  * Utility methods for dealing with time and duration parsing.
  */
@@ -23,6 +22,7 @@ public class TimeUtil {
     private static final SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM d yyyy HH:mm:ss");
 
     private static final HashMap<Character, Long> DURATION_CHARS = new HashMap<>();
+    // TODO Why are both upper and lower put in here??
     static {
         DURATION_CHARS.put('Y', 31536000L);
         DURATION_CHARS.put('y', 31536000L);
@@ -46,21 +46,21 @@ public class TimeUtil {
      * @param time in milliseconds (e.x. 1000 == 0.02/m)
      * @return {@link java.lang.String}
      */
-    public static String significantDurationString(@NotNull final long time) {
+    public static String significantDurationString(final long time) {
         StringBuilder message = new StringBuilder();
         double timeSince = (double) (System.currentTimeMillis() / 1000L)
-                - ((double) (System.currentTimeMillis() / 1000L) - (time / 1000L) + 0.0);
+                - ((double) (System.currentTimeMillis() / 1000L) - ((double)time / 1000L) + 0.0);
         if ((timeSince /= 60.0) < 60.0) {
-            message.append(new DecimalFormat("0.00").format(timeSince) + "/m");
+            message.append(new DecimalFormat("0.00").format(timeSince)).append("/m");
         }
         if (message.length() == 0 && (timeSince /= 60.0) < 24.0) {
-            message.append(new DecimalFormat("0.00").format(timeSince) + "/h");
+            message.append(new DecimalFormat("0.00").format(timeSince)).append("/h");
         }
         if (message.length() == 0 && (timeSince /= 24.0) < 30) {
-            message.append(new DecimalFormat("0.00").format(timeSince) + "/d");
+            message.append(new DecimalFormat("0.00").format(timeSince)).append("/d");
         }
         if (message.length() == 0) {
-            message.append(new DecimalFormat("0.00").format(timeSince /= 30.0) + "/mo");
+            message.append(new DecimalFormat("0.00").format(timeSince /= 30.0)).append("/mo");
         }
         return message.toString();
     }
@@ -73,7 +73,7 @@ public class TimeUtil {
      * @param time in milliseconds (e.x. 1000 == 1 second)
      * @return {@link java.lang.String}
      */
-    public static String durationString(@NotNull final long time) {
+    public static String durationString(final long time) {
         var t = time / 1000L;
         long years = t / 31449600;
         long weeks = (t / 604800) % 52;
