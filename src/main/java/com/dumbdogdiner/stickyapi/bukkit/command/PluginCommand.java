@@ -61,7 +61,7 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
      * @param owner the owning plugin
      */
     public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner) {
-        this(name, aliases, owner, new Permission((owner.getName() + '.' +  name).toLowerCase()));
+        this(name, aliases, owner, CommandBuilder.getBasePermissionName(owner, name));
     }
 
     /**
@@ -82,6 +82,20 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
         commandPermissions.add(0, basePermission);
         cooldowns = new CooldownManager(COOLDOWN_TIME);
     }
+
+    /**
+     * A StickyPluginCommand
+     * @param name the name of the command
+     * @param aliases aliases of the command
+     * @param owner the owning plugin
+     * @param basePermission the permission to execute the command
+     */
+    public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner, @NotNull Permission basePermission, boolean playSounds) {
+        this(name, aliases, owner, basePermission);
+        this.playSounds = playSounds;
+    }
+
+
 
     abstract public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args, @NotNull Map<String, String> variables);
 
@@ -139,6 +153,8 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
     }
 
     protected void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code, Map<String, String> vars) {
+        if(code == null)
+            return;
         playSound(sender, code);
         switch(code) {
             case EXIT_ERROR_SILENT:

@@ -55,7 +55,7 @@ public class CommandBuilder {
 
     @FunctionalInterface
     public interface Executor {
-        public ExitCode execute(CommandSender sender, Arguments args, TreeMap<String, String> vars);
+        public ExitCode execute(CommandSender sender, Arguments args, String label, Map<String, String> vars);
     }
 
     @FunctionalInterface
@@ -65,7 +65,7 @@ public class CommandBuilder {
 
     @FunctionalInterface
     public interface ErrorHandler {
-        public void onComplete(ExitCode exitCode, CommandSender sender, Arguments args, TreeMap<String, String> vars);
+        public void onComplete(ExitCode exitCode, CommandSender sender, Arguments args, Map<String, String> vars);
     }
 
     /**
@@ -252,10 +252,10 @@ public class CommandBuilder {
         return this;
     }
 
-    private void performAsynchronousExecution(CommandSender sender, org.bukkit.command.Command command, String label,
+    private void performAsynchronousExecution(CommandSender sender, PluginCommand command, String label,
             List<String> args) {
         StickyAPI.getPool().execute(new FutureTask<Void>(() -> {
-            performExecution(sender, command, label, args);
+            command.execute(sender, label, args.toArray(new String[]));
             return null;
         }));
     }
@@ -267,7 +267,7 @@ public class CommandBuilder {
      * @param args the args provided to the main command
      * @return if a subcommand was found and executed
      */
-    private boolean executeSubCommandIfExists(CommandSender sender, PluginIdentifiableCommand command, List<String> args){
+    private boolean executeSubCommandIfExists(CommandSender sender, PluginCommand command, List<String> args){
         if (args.size() > 0 && subCommands.containsKey(args.get(0))) {
             CommandBuilder subCommand = subCommands.get(args.get(0));
             String subLabel = args.get(0);
@@ -276,44 +276,29 @@ public class CommandBuilder {
                 if(subCommand.synchronous){
                     subCommand.performAsynchronousExecution(sender, command, subLabel, subArgs);
                 } else {
-                    Bukkit.getScheduler().scheduleSyncDelayedTask(command.getPlugin(), new Runnable() {
-                        @Override
-                        public void run() {
-                            subCommand.performExecution(sender, command, subLabel, args);
-                        }
-                    }, 1L);
+                    Bukkit.getScheduler().scheduleSyncDelayedTask(command.getPlugin(), () ->
+                            errorHandler.onsubCommand.performExecution(sender, command, subLabel, subArgs), 1L);
                 }
             }
         }
     }
 
     /**
-     * Execute this command. Checks for existing sub-commands, and runs the error
-     * handler if anything goes wrong.
+     * Execute this command.
+     * @return the exit code from command
      */
-    private void performExecution(CommandSender sender, PluginIdentifiableCommand command, String label,
-            List<String> args) {
-        if(executeSubCommandIfExists(sender, command, label, args))
-        // look for subcommands
-        if (args.size() > 0 && subCommands.containsKey(args.get(0))) {
+    private ExitCode performExecution(CommandSender sender, String label, Arguments args, Map<String, String> variables) {
+        return executor.execute(sender, args, label, variables);
+    }
 
-
-
-
-            List <String> subArgs = args.subList(1, args.size());
-
-
-
-            // spawn async command from sync
-            if (synchronous && !subCommand.synchronous) {
-
-            }
-
-            subCommand.performExecution(sender, command, label, argsClone);
-            return;
-        }
-
-
+    /**
+     * Generate a permission for a given command
+     * @param plugin The plugin that owns the command
+     * @param name The name of the command
+     * @return the permission of format &lt;PluginName&gt;.&lt;CommandName&gt;
+     */
+    public static Permission getBasePermissionName(@NotNull StickyPlugin plugin, @NotNull String name){
+        return new Permission((plugin.getName() + '.' +  name).toLowerCase());
     }
 
     /**
@@ -324,15 +309,28 @@ public class CommandBuilder {
      */
     public org.bukkit.command.Command build(@NotNull StickyPlugin plugin) {
 
-        PluginCommand command = new PluginCommand(name, aliases, plugin) {
+        if(permission == null){
+           permission = getBasePermissionName(plugin, name);
+        }
+        PluginCommand command = new PluginCommand(name, aliases, plugin, permission, playSound) {
+
             @Override
             public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args, @NotNull Map<String, String> variables) {
-                return null;
+                if(executeSubCommandIfExists(sender, this, args.getRawArgs())){
+                    return null;
+                } else {
+                    return performExecution(sender, this, alias, args, variables);
+                }
             }
 
             @Override
             public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException, CommandException {
                 return null;
+            }
+
+            @Override
+            protected void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code, Map<String, String> vars){
+
             }
         };
 
