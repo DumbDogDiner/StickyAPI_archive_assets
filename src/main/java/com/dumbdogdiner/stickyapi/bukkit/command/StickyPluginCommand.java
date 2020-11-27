@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2020 DumbDogDiner <a href="dumbdogdiner.com">&lt;dumbdogdiner.com&gt;</a>. All rights reserved.
+ * Copyright (c) 2020 DumbDogDiner <dumbdogdiner.com>. All rights reserved.
  * Licensed under the MIT license, see LICENSE for more information...
  */
 package com.dumbdogdiner.stickyapi.bukkit.command;
@@ -8,6 +8,7 @@ import com.dumbdogdiner.stickyapi.bukkit.command.builder.CommandBuilder;
 import com.dumbdogdiner.stickyapi.bukkit.plugin.StickyPlugin;
 import com.dumbdogdiner.stickyapi.bukkit.util.NotificationType;
 import com.dumbdogdiner.stickyapi.bukkit.util.SoundUtil;
+import com.dumbdogdiner.stickyapi.common.ServerVersion;
 import com.dumbdogdiner.stickyapi.common.arguments.Arguments;
 import com.dumbdogdiner.stickyapi.common.translation.LocaleProvider;
 import com.dumbdogdiner.stickyapi.common.util.ReflectionUtil;
@@ -22,10 +23,7 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.dumbdogdiner.stickyapi.bukkit.command.ExitCode.*;
 
@@ -36,16 +34,13 @@ import static com.dumbdogdiner.stickyapi.bukkit.command.ExitCode.*;
  */
 // Fuck you reflection, and fuck you Java for changing it so much!!!
 //I'ma fuggin rewrite bits of this so its not garbage
-public abstract class PluginCommand extends org.bukkit.command.Command implements PluginIdentifiableCommand {
+public abstract class StickyPluginCommand extends org.bukkit.command.Command implements PluginIdentifiableCommand {
     private final StickyPlugin owningPlugin;
     @Getter
     protected List<Permission> commandPermissions = new ArrayList<>();
     protected boolean playSounds = false;
     @Getter
     private final LocaleProvider locale;
-    @Setter
-    @Getter
-    CommandBuilder.ErrorHandler errorHandler;
     protected long COOLDOWN_TIME;
     protected CooldownManager cooldowns;
     @Getter
@@ -53,27 +48,28 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
     protected boolean requiresPlayer = false;
 
 
-
     /**
      * A StickyPluginCommand
-     * @param name the name of the command
+     *
+     * @param name    the name of the command
      * @param aliases aliases of the command
-     * @param owner the owning plugin
+     * @param owner   the owning plugin
      */
-    public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner) {
+    public StickyPluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner) {
         this(name, aliases, owner, CommandBuilder.getBasePermissionName(owner, name));
     }
 
     /**
      * A StickyPluginCommand
-     * @param name the name of the command
-     * @param aliases aliases of the command
-     * @param owner the owning plugin
+     *
+     * @param name           the name of the command
+     * @param aliases        aliases of the command
+     * @param owner          the owning plugin
      * @param basePermission the permission to execute the command
      */
-    public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner, @NotNull Permission basePermission) {
+    public StickyPluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner, @NotNull Permission basePermission) {
         super(name);
-        if(aliases != null)
+        if (aliases != null)
             setAliases(aliases);
         this.owningPlugin = owner;
         this.basePermission = basePermission;
@@ -85,16 +81,16 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
 
     /**
      * A StickyPluginCommand
-     * @param name the name of the command
-     * @param aliases aliases of the command
-     * @param owner the owning plugin
+     *
+     * @param name           the name of the command
+     * @param aliases        aliases of the command
+     * @param owner          the owning plugin
      * @param basePermission the permission to execute the command
      */
-    public PluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner, @NotNull Permission basePermission, boolean playSounds) {
+    public StickyPluginCommand(@NotNull String name, @Nullable List<String> aliases, @NotNull StickyPlugin owner, @NotNull Permission basePermission, boolean playSounds) {
         this(name, aliases, owner, basePermission);
         this.playSounds = playSounds;
     }
-
 
 
     abstract public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args, @NotNull Map<String, String> variables);
@@ -124,14 +120,14 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
         Arguments arguments = new Arguments(Arrays.asList(args));
 
         long cooldown = cooldowns.getSenderRemainingCooldown(sender);
-        if(cooldown > 0L){
+        if (cooldown > 0L) {
             variables.put("cooldown", TimeUtil.durationString(COOLDOWN_TIME));
             variables.put("cooldown-remaining", TimeUtil.durationString(cooldown));
-            onError(sender,commandLabel, arguments, EXIT_COOLDOWN, variables);
+            onError(sender, commandLabel, arguments, EXIT_COOLDOWN, variables);
             return true;
         }
 
-        if(requiresPlayer && sender instanceof ConsoleCommandSender){
+        if (requiresPlayer && sender instanceof ConsoleCommandSender) {
             onError(sender, commandLabel, arguments, EXIT_MUST_BE_PLAYER, variables);
             return true;
         }
@@ -152,11 +148,11 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
         }
     }
 
-    protected void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code, Map<String, String> vars) {
-        if(code == null)
+    public void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code, Map<String, String> vars) {
+        if (code == null)
             return;
         playSound(sender, code);
-        switch(code) {
+        switch (code) {
             case EXIT_ERROR_SILENT:
             case EXIT_SUCCESS:
             case EXIT_INFO:
@@ -187,9 +183,6 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
     }
 
 
-
-
-
     /**
      * Gets the owner of this PluginCommand
      *
@@ -205,7 +198,7 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
      * {@inheritDoc}
      */
     @Override
-    public abstract @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String [] args) throws IllegalArgumentException, CommandException;
+    public abstract @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException, CommandException;
 
     /**
      * <p>
@@ -214,8 +207,9 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
      * If it is not present or returns null, will delegate to the current command
      * executor if it implements {@link TabCompleter}. If a non-null list has not
      * been found, will default to standard player name completion in
-     * {@link Command#tabComplete(CommandSender, String, String[])}.
+     * {@link StickyPluginCommand#tabComplete(CommandSender, String, String[])}.
      * <p>
+     *
      * @throws IllegalArgumentException if sender, alias, or args is null
      */
 
@@ -235,14 +229,19 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
     }
 
     /**
-     * Register the command with a {@link org.bukkit.plugin.Plugin}
-     *
-     * @param plugin to register with
+     * Register the command the owner {@link org.bukkit.plugin.Plugin}
      */
-    public final void register(@NotNull Plugin plugin) {
-        CommandMap cmap = ReflectionUtil.getProtectedValue(plugin.getServer(), "commandMap");
-        assert cmap != null;
-        cmap.register(plugin.getName(), this);
+    public final void register() {
+
+        // If the server is running paper, we don't need to do reflection, which is
+        // good.
+        if (ServerVersion.isPaper()) {
+            owningPlugin.getServer().getCommandMap().register(owningPlugin.getName(), this);
+            return;
+        }
+        // However, if it's not running paper, we need to use reflection, which is
+        // really annoying
+        ((CommandMap) Objects.requireNonNull(ReflectionUtil.getProtectedValue(owningPlugin.getServer(), "commandMap"))).register(owningPlugin.getName(), this);
     }
 
     private void playSound(CommandSender sender, ExitCode code) {
@@ -253,7 +252,8 @@ public abstract class PluginCommand extends org.bukkit.command.Command implement
         if (this.playSounds)
             SoundUtil.send(sender, type);
     }
-    void enableSounds(){
+
+    void enableSounds() {
         playSounds = true;
     }
 }

@@ -6,8 +6,9 @@ package com.dumbdogdiner.stickyapi.bukkit.command.builder;
 
 
 import com.dumbdogdiner.stickyapi.StickyAPI;
+import com.dumbdogdiner.stickyapi.bukkit.command.ErrorHandler;
 import com.dumbdogdiner.stickyapi.bukkit.command.ExitCode;
-import com.dumbdogdiner.stickyapi.bukkit.command.PluginCommand;
+import com.dumbdogdiner.stickyapi.bukkit.command.StickyPluginCommand;
 import com.dumbdogdiner.stickyapi.bukkit.plugin.StickyPlugin;
 import com.dumbdogdiner.stickyapi.bukkit.util.NotificationType;
 import com.dumbdogdiner.stickyapi.bukkit.util.SoundUtil;
@@ -47,7 +48,7 @@ public class CommandBuilder {
 
     ErrorHandler errorHandler;
 
-    PluginCommand bukkitCommand;
+    StickyPluginCommand bukkitCommand;
 
     HashMap<String, CommandBuilder> subCommands = new HashMap<>();
 
@@ -55,18 +56,33 @@ public class CommandBuilder {
 
     @FunctionalInterface
     public interface Executor {
-        public ExitCode execute(CommandSender sender, Arguments args, String label, Map<String, String> vars);
+        ExitCode execute(CommandSender sender, Arguments args, String label, Map<String, String> vars);
     }
 
-    @FunctionalInterface
     public interface TabExecutor {
-        public java.util.List<String> tabComplete(CommandSender sender, String commandLabel, Arguments args);
+        default List<String> tabComplete(CommandSender sender, String commandLabel, Arguments arguments) {
+            String [] args = (String[]) arguments.getRawArgs().toArray();
+
+                String lastWord = args[args.length - 1];
+
+                Player senderPlayer = sender instanceof Player ? (Player) sender : null;
+
+                ArrayList<String> matchedPlayers = new ArrayList<String>();
+                for (Player player : ) {
+                    String name = player.getName();
+                    if ((senderPlayer == null || senderPlayer.canSee(player))
+                            && StringUtil.startsWithIgnoreCase(name, lastWord)) {
+                        matchedPlayers.add(name);
+                    }
+                }
+
+                Collections.sort(matchedPlayers, String.CASE_INSENSITIVE_ORDER);
+                return matchedPlayers;
+                return tabExecutor.tabComplete(sender, alias, new Arguments(Arrays.asList(args)));
+        }
     }
 
-    @FunctionalInterface
-    public interface ErrorHandler {
-        public void onComplete(ExitCode exitCode, CommandSender sender, Arguments args, Map<String, String> vars);
-    }
+
 
     /**
      * Create a new [@link CommandBuilder} instance
@@ -252,8 +268,8 @@ public class CommandBuilder {
         return this;
     }
 
-    private void performAsynchronousExecution(CommandSender sender, PluginCommand command, String label,
-            List<String> args) {
+    private void performAsynchronousExecution(CommandSender sender, StickyPluginCommand command, String label,
+                                              List<String> args) {
         StickyAPI.getPool().execute(new FutureTask<Void>(() -> {
             command.execute(sender, label, args.toArray(new String[]));
             return null;
@@ -267,7 +283,7 @@ public class CommandBuilder {
      * @param args the args provided to the main command
      * @return if a subcommand was found and executed
      */
-    private boolean executeSubCommandIfExists(CommandSender sender, PluginCommand command, List<String> args){
+    private boolean executeSubCommandIfExists(CommandSender sender, StickyPluginCommand command, List<String> args){
         if (args.size() > 0 && subCommands.containsKey(args.get(0))) {
             CommandBuilder subCommand = subCommands.get(args.get(0));
             String subLabel = args.get(0);
@@ -277,7 +293,7 @@ public class CommandBuilder {
                     subCommand.performAsynchronousExecution(sender, command, subLabel, subArgs);
                 } else {
                     Bukkit.getScheduler().scheduleSyncDelayedTask(command.getPlugin(), () ->
-                            errorHandler.onsubCommand.performExecution(sender, command, subLabel, subArgs), 1L);
+                            errorHandler.subCommand.performExecution(sender, command, subLabel, subArgs), 1L);
                 }
             }
         }
@@ -312,14 +328,13 @@ public class CommandBuilder {
         if(permission == null){
            permission = getBasePermissionName(plugin, name);
         }
-        PluginCommand command = new PluginCommand(name, aliases, plugin, permission, playSound) {
-
+        StickyPluginCommand command = new StickyPluginCommand(name, aliases, plugin, permission, playSound) {
             @Override
             public ExitCode execute(@NotNull CommandSender sender, @NotNull String alias, @NotNull Arguments args, @NotNull Map<String, String> variables) {
                 if(executeSubCommandIfExists(sender, this, args.getRawArgs())){
                     return null;
                 } else {
-                    return performExecution(sender, this, alias, args, variables);
+                    return executor.execute(sender, args, alias, variables);
                 }
             }
 
@@ -329,52 +344,30 @@ public class CommandBuilder {
             }
 
             @Override
-            protected void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code, Map<String, String> vars){
-
+            public void onError(CommandSender sender, String commandLabel, Arguments arguments, ExitCode code, Map<String, String> vars){
+                if(errorHandler == null || !errorHandler.onError(code, sender, arguments, vars))
+                    super.onError(sender, commandLabel,arguments, code, vars);
             }
         };
+
+        command.setDescription(description);
 
         if (this.synchronous == null) {
             this.synchronous = false;
         }
 
+        if(errorHandler != null){
+
+        }
+
         // Execute the command by creating a new CommandExecutor and passing the
         // arguments to our executor
-        command.setExecutor(new CommandExecutor() {
-            @Override
-            public boolean onCommand(CommandSender sender, org.bukkit.command.Command command, String label,
-                    String[] args) {
-                performExecution(sender, command, label, Arrays.asList(args));
-                return true;
-            }
-        });
+
 
         command.setTabCompleter(new TabCompleter() {
             @Override
             public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-                if (tabExecutor == null) {
-                    if (args.length == 0) {
-                        return ImmutableList.of();
-                    }
 
-                    String lastWord = args[args.length - 1];
-
-                    Player senderPlayer = sender instanceof Player ? (Player) sender : null;
-
-                    ArrayList<String> matchedPlayers = new ArrayList<String>();
-                    for (Player player : sender.getServer().getOnlinePlayers()) {
-                        String name = player.getName();
-                        if ((senderPlayer == null || senderPlayer.canSee(player))
-                                && StringUtil.startsWithIgnoreCase(name, lastWord)) {
-                            matchedPlayers.add(name);
-                        }
-                    }
-
-                    Collections.sort(matchedPlayers, String.CASE_INSENSITIVE_ORDER);
-                    return matchedPlayers;
-                } else {
-                    return tabExecutor.tabComplete(sender, alias, new Arguments(Arrays.asList(args)));
-                }
             }
         });
 
@@ -383,7 +376,7 @@ public class CommandBuilder {
         if (this.aliases != null)
             command.setAliases(this.aliases);
 
-        command.setPermission(this.permission);
+
         this.bukkitCommand = command;
         return command;
     }
@@ -393,18 +386,11 @@ public class CommandBuilder {
      * 
      * @param plugin to register with
      */
-    public void register(@NotNull Plugin plugin) {
-
-        // If the server is running paper, we don't need to do reflection, which is
-        // good.
-        if (ServerVersion.isPaper()) {
-            plugin.getServer().getCommandMap().register(plugin.getName(), this.build(plugin));
-            return;
+    public void register(@NotNull StickyPlugin plugin) {
+        if(bukkitCommand == null || !plugin.equals(bukkitCommand.getPlugin())) {
+            this.build(plugin);
         }
-        // However, if it's not running paper, we need to use reflection, which is
-        // really annoying
-        ((CommandMap) ReflectionUtil.getProtectedValue(plugin.getServer(), "commandMap")).register(plugin.getName(),
-                this.build(plugin));
+        bukkitCommand.register();
     }
 
     private void _playSound(CommandSender sender, NotificationType type) {
