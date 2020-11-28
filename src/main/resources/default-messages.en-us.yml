@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2020 DumbDogDiner <dumbdogdiner.com>. All rights reserved.
+# Licensed under the MIT license, see LICENSE for more information...
+#
+
 # Global variables, you can use these in any message in this file.
 newline: "&8&l» "
 prefix: "&b&l{plugin} {newline}"
