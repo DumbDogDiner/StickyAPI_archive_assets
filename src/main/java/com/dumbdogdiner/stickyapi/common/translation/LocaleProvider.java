@@ -316,7 +316,7 @@ public class LocaleProvider {
      * 
      * @return {@link java.util.TreeMap}
      */
-    public TreeMap<String, String> newVariables() {
+    public static TreeMap<String, String> newVariables() {
         return new TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER);
     }
 }

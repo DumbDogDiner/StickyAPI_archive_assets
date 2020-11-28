@@ -16,6 +16,7 @@ import com.dumbdogdiner.stickyapi.common.util.TimeUtil;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang.Validate;
+import org.bukkit.Bukkit;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
 import org.bukkit.permissions.Permission;
@@ -35,6 +36,7 @@ import static com.dumbdogdiner.stickyapi.bukkit.command.ExitCode.*;
 // Fuck you reflection, and fuck you Java for changing it so much!!!
 //I'ma fuggin rewrite bits of this so its not garbage
 public abstract class StickyPluginCommand extends org.bukkit.command.Command implements PluginIdentifiableCommand {
+    @Getter
     private final StickyPlugin owningPlugin;
     @Getter
     protected List<Permission> commandPermissions = new ArrayList<>();
@@ -191,7 +193,7 @@ public abstract class StickyPluginCommand extends org.bukkit.command.Command imp
     @Override
     @NotNull
     public Plugin getPlugin() {
-        return owningPlugin;
+        return getOwningPlugin();
     }
 
     /**

@@ -9,19 +9,15 @@ import com.dumbdogdiner.stickyapi.StickyAPI;
 import com.dumbdogdiner.stickyapi.bukkit.command.ErrorHandler;
 import com.dumbdogdiner.stickyapi.bukkit.command.ExitCode;
 import com.dumbdogdiner.stickyapi.bukkit.command.StickyPluginCommand;
+import com.dumbdogdiner.stickyapi.bukkit.command.tabcomplete.PlayerNameTabExecutor;
+import com.dumbdogdiner.stickyapi.bukkit.command.tabcomplete.TabExecutor;
 import com.dumbdogdiner.stickyapi.bukkit.plugin.StickyPlugin;
-import com.dumbdogdiner.stickyapi.bukkit.util.NotificationType;
-import com.dumbdogdiner.stickyapi.bukkit.util.SoundUtil;
-import com.dumbdogdiner.stickyapi.common.ServerVersion;
 import com.dumbdogdiner.stickyapi.common.arguments.Arguments;
-import com.dumbdogdiner.stickyapi.common.util.ReflectionUtil;
-import com.dumbdogdiner.stickyapi.common.util.StringUtil;
-import com.google.common.collect.ImmutableList;
+import com.dumbdogdiner.stickyapi.common.translation.LocaleProvider;
 import org.bukkit.Bukkit;
-import org.bukkit.command.*;
-import org.bukkit.entity.Player;
+import org.bukkit.command.CommandException;
+import org.bukkit.command.CommandSender;
 import org.bukkit.permissions.Permission;
-import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -33,6 +29,7 @@ import java.util.concurrent.FutureTask;
  * 
  * @since 2.0
  */
+@SuppressWarnings("unused")
 public class CommandBuilder {
     Boolean synchronous = false;
     Boolean requiresPlayer = false;
@@ -44,7 +41,7 @@ public class CommandBuilder {
     Long cooldown = 0L;
 
     Executor executor;
-    TabExecutor tabExecutor;
+    TabExecutor tabExecutor = new PlayerNameTabExecutor();
 
     ErrorHandler errorHandler;
 
@@ -56,31 +53,9 @@ public class CommandBuilder {
 
     @FunctionalInterface
     public interface Executor {
-        ExitCode execute(CommandSender sender, Arguments args, String label, Map<String, String> vars);
+        ExitCode execute(@NotNull CommandSender sender, @NotNull Arguments args,@NotNull String label,@NotNull Map<String, String> vars);
     }
 
-    public interface TabExecutor {
-        default List<String> tabComplete(CommandSender sender, String commandLabel, Arguments arguments) {
-            String [] args = (String[]) arguments.getRawArgs().toArray();
-
-                String lastWord = args[args.length - 1];
-
-                Player senderPlayer = sender instanceof Player ? (Player) sender : null;
-
-                ArrayList<String> matchedPlayers = new ArrayList<String>();
-                for (Player player : ) {
-                    String name = player.getName();
-                    if ((senderPlayer == null || senderPlayer.canSee(player))
-                            && StringUtil.startsWithIgnoreCase(name, lastWord)) {
-                        matchedPlayers.add(name);
-                    }
-                }
-
-                Collections.sort(matchedPlayers, String.CASE_INSENSITIVE_ORDER);
-                return matchedPlayers;
-                return tabExecutor.tabComplete(sender, alias, new Arguments(Arrays.asList(args)));
-        }
-    }
 
 
 
@@ -270,14 +245,11 @@ public class CommandBuilder {
 
     private void performAsynchronousExecution(CommandSender sender, StickyPluginCommand command, String label,
                                               List<String> args) {
-        StickyAPI.getPool().execute(new FutureTask<Void>(() -> {
-            command.execute(sender, label, args.toArray(new String[]));
-            return null;
-        }));
+
     }
 
     /**
-     *
+     * Executes a subcommand if it exists
      * @param sender the commandsender
      * @param command the bukkit command
      * @param args the args provided to the main command
@@ -287,25 +259,24 @@ public class CommandBuilder {
         if (args.size() > 0 && subCommands.containsKey(args.get(0))) {
             CommandBuilder subCommand = subCommands.get(args.get(0));
             String subLabel = args.get(0);
-            List<String> subArgs = args.subList(1, args.size());
+            String [] subArgs = (String[]) args.subList(1, args.size()).toArray();
             if(synchronous != subCommand.synchronous){
                 if(subCommand.synchronous){
-                    subCommand.performAsynchronousExecution(sender, command, subLabel, subArgs);
+                    StickyAPI.getPool().execute(new FutureTask<Void>(() -> {
+                        subCommand.build(command.getOwningPlugin()).execute(sender, subLabel, subArgs);
+                        return null;
+                    }));
                 } else {
                     Bukkit.getScheduler().scheduleSyncDelayedTask(command.getPlugin(), () ->
-                            errorHandler.subCommand.performExecution(sender, command, subLabel, subArgs), 1L);
+                            subCommand.build(command.getOwningPlugin()).execute(sender, subLabel, subArgs));
                 }
             }
+            return true;
         }
+        return false;
     }
 
-    /**
-     * Execute this command.
-     * @return the exit code from command
-     */
-    private ExitCode performExecution(CommandSender sender, String label, Arguments args, Map<String, String> variables) {
-        return executor.execute(sender, args, label, variables);
-    }
+
 
     /**
      * Generate a permission for a given command
@@ -321,9 +292,9 @@ public class CommandBuilder {
      * Build the command!
      * 
      * @param plugin to build it for
-     * @return {@link org.bukkit.command.Command}
+     * @return {@link StickyPluginCommand}
      */
-    public org.bukkit.command.Command build(@NotNull StickyPlugin plugin) {
+    public StickyPluginCommand build(@NotNull StickyPlugin plugin) {
 
         if(permission == null){
            permission = getBasePermissionName(plugin, name);
@@ -340,7 +311,7 @@ public class CommandBuilder {
 
             @Override
             public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException, CommandException {
-                return null;
+                return tabExecutor.tabComplete(sender, alias, new Arguments(Arrays.asList(args)));
             }
 
             @Override
@@ -356,20 +327,10 @@ public class CommandBuilder {
             this.synchronous = false;
         }
 
-        if(errorHandler != null){
-
-        }
-
         // Execute the command by creating a new CommandExecutor and passing the
         // arguments to our executor
 
 
-        command.setTabCompleter(new TabCompleter() {
-            @Override
-            public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-
-            }
-        });
 
         command.setDescription(this.description);
 
@@ -391,11 +352,5 @@ public class CommandBuilder {
             this.build(plugin);
         }
         bukkitCommand.register();
-    }
-
-    private void _playSound(CommandSender sender, NotificationType type) {
-        if (!this.playSound)
-            return;
-        SoundUtil.send(sender, type);
     }
 }
