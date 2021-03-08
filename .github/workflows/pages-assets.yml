@@ -1,10 +1,10 @@
-name: Deploy python
-
-on: [push]
-
+name: pages-assets
+on:
+  push:
+    branches:
+      - assets/**
 jobs:
   build:
-
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -22,24 +22,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Run script
         run: python main.py
-#      - name: Import GPG key for docs deployment signing
-#        id: import_gpg
-#        uses: crazy-max/ghaction-import-gpg@v3.0.2
-#        with:
-#          gpg-private-key: ${{ secrets.DOCS_GPG_PRIV_KEY }}
-#          # Set GPG signing keyID for this Git repository
-#          git-user-signingkey: true
-#          # Sign all commits automatically.
-#          git-commit-gpgsign: true
-#      - name: Print imported GPG key details
-#        run: |
-#          echo "fingerprint: ${{ steps.import_gpg.outputs.fingerprint }}"
-#          echo "keyid:       ${{ steps.import_gpg.outputs.keyid }}"
-#          echo "name:        ${{ steps.import_gpg.outputs.name }}"
-#          echo "email:       ${{ steps.import_gpg.outputs.email }}"
+      - name: Import GPG key for docs deployment signing
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v3.0.2
+        with:
+          gpg-private-key: ${{ secrets.DOCS_GPG_PRIV_KEY }}
+          # Set GPG signing keyID for this Git repository
+          git-user-signingkey: true
+          # Sign all commits automatically.
+          git-commit-gpgsign: true
+      - name: Print imported GPG key details
+        run: |
+          echo "fingerprint: ${{ steps.import_gpg.outputs.fingerprint }}"
+          echo "keyid:       ${{ steps.import_gpg.outputs.keyid }}"
+          echo "name:        ${{ steps.import_gpg.outputs.name }}"
+          echo "email:       ${{ steps.import_gpg.outputs.email }}"
       - name: Deploy Docs
         uses: JamesIves/github-pages-deploy-action@3.7.1
         with:
@@ -47,5 +46,5 @@ jobs:
           BRANCH: gh-pages
           FOLDER: "out"
           CLEAN: false # don't clean so we can also use tags
-          GIT_CONFIG_NAME: "Heads generation deployment"
+          GIT_CONFIG_NAME: "StickyAPI Docs Deployment"
           GIT_CONFIG_EMAIL: ${{ secrets.DOCS_GH_EMAIL }}
