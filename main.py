@@ -40,7 +40,7 @@ def gems(gemsfolder):
 def process_gem(nbttag):
     tag = nbtlib.parse_nbt(nbttag)
     # print(nbttag)
-    name = json.loads(tag['display']['Name'])[1]['text']
+    name = json.loads(tag['display']['Name'])['extra'][0]['text']
     name = name.replace('\u00c2\u00a7\u0072\u00c2\u00a7\u0065', '').upper().replace('GEM', '').strip().replace(' ', '_')
 
     texture = tag['SkullOwner']['Properties']['textures'][0]['Value']
