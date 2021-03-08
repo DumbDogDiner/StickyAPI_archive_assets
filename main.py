@@ -182,9 +182,11 @@ def main():
             textures_data['MHF'].update(mhf())
 
             os.chdir(origdir)
-            if (not os.path.exists('./out/')):
-                os.mkdir('./out')
-            json.dump(textures_data, open('./out/textures.json', 'w'))
+            if (not os.path.exists('./web/')):
+                os.mkdir('./web')
+            if (not os.path.exists('./web/assets/')):
+                os.mkdir('./web/assets')
+            json.dump(textures_data, open('./web/assets/textures.json', 'w'))
 
 
 if __name__ == '__main__':

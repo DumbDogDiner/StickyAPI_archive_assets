@@ -44,7 +44,7 @@ jobs:
         with:
           ACCESS_TOKEN: ${{ secrets.DOCS_GH_TOKEN }}
           BRANCH: gh-pages
-          FOLDER: "out"
+          FOLDER: "web"
           CLEAN: false # don't clean so we can also use tags
           GIT_CONFIG_NAME: "StickyAPI Docs Deployment"
           GIT_CONFIG_EMAIL: ${{ secrets.DOCS_GH_EMAIL }}
