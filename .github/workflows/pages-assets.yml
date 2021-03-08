@@ -1,10 +1,8 @@
-name: pages
-
+name: pages-assets
 on:
   push:
     branches:
-      - main
-
+      - assets/**
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -13,22 +11,23 @@ jobs:
         uses: actions/checkout@v2.3.1 # If you're using actions/checkout@v2 you must set persist-credentials to false in most cases for the docs deployment to work correctly.
         with:
           persist-credentials: false
-      - name: Echo branch name
-        run: echo ${GITHUB_REF##*/}
       - name: Create output directories
-        run: mkdir -p web/${GITHUB_REF##*/}
+        run: mkdir -p web/assets
       - uses: actions/setup-node@v1
         with:
           node-version: 14.x
       - name: Run npm ci
         run: npm ci
-      # Not running for now as it is too large.
-      #- name: Extract character map
-      #  run: node cli extract web/${GITHUB_REF##*/}/providers --debug
+      - name: Extract character map
+        run: node cli extract web/assets/providers --debug
       - name: Extract font file
-        run: node cli font web/${GITHUB_REF##*/}/Mojangles --debug
+        run: node cli font web/assets/Mojangles --debug
       - name: Extract width data
-        run: node cli width web/${GITHUB_REF##*/}/mojangles_width_data --debug
+        run: node cli width web/assets/mojangles_width_data --debug
+      - name: Compress character map
+        run: |
+          zip  web/assets/providers.zip  web/assets/providers.json
+          rm web/assets/providers.json
       - name: Import GPG key for docs deployment signing
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v3.0.2
